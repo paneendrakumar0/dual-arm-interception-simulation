@@ -1,0 +1,28 @@
+{
+  "time_step": 0.0041666667,
+  "duration_seconds": 5.0,
+  "gravity": [0.0, 0.0, -9.81],
+  "projectile": {
+    "start_position": [-0.38, -0.48, 1.24],
+    "start_velocity": [0.48, 0.78, 3.45],
+    "radius": 0.08,
+    "mass": 0.35
+  },
+  "intercept": {
+    "target_time_seconds": 0.72,
+    "capture_distance_m": 0.37,
+    "stabilize_height_m": 1.05
+  },
+  "arms": {
+    "left_base_position": [-0.42, 0.0, 0.68],
+    "right_base_position": [0.42, 0.0, 0.68],
+    "max_joint_velocity": 4.5,
+    "position_gain": 0.34,
+    "velocity_gain": 1.0
+  },
+  "camera": {
+    "width": 960,
+    "height": 540,
+    "frame_stride": 12
+  }
+}
