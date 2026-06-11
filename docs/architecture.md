@@ -17,6 +17,15 @@ handling, telemetry, and repeatable evaluation.
 - `outputs/frames/`: rendered image sequence for showcase editing.
 - `outputs/experiments/latest/`: Monte Carlo experiment artifacts.
 
+## Contact Model
+
+The current simulator attaches explicit gripper pad geometry to the KUKA end
+effectors. Capture is evaluated using pad-to-object contact target error, not
+only wrist distance. For this baseline, pad/projectile collisions are disabled
+so the pads act as kinematic measurement fixtures; the next contact-rich phase
+will replace this with articulated fingers, force closure checks, and tactile
+sensing.
+
 ## Near-Term ROS 2 Graph
 
 - `trajectory_predictor`: subscribes to object state and publishes intercept

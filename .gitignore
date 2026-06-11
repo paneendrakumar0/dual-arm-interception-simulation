@@ -3,4 +3,5 @@ __pycache__/
 *.pyc
 outputs/
 outputs_test/
+outputs_sweep/
 .pytest_cache/

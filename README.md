@@ -12,9 +12,9 @@ The target project is a cinematic robotics R&D demo:
 
 - A mechanical component flies through a manufacturing workcell.
 - A dual-arm robot predicts the component trajectory in real time.
-- Both arms coordinate to intercept and stabilize the part inside a capture
-  envelope. Later dexterous-hand models will replace this coarse wrist envelope
-  with fingertip contact constraints.
+- Both arms coordinate to intercept and stabilize the part with explicit
+  simulated gripper pads and contact-error metrics. Later dexterous-hand models
+  will replace the two-pad fixture with articulated fingers and tactile sensing.
 - The system records metrics, rendered frames, and a short showcase video path.
 
 This is a good internship portfolio direction because it combines robot
@@ -95,4 +95,5 @@ See [docs/architecture.md](docs/architecture.md) and
 
 For the research workflow and target hardware profile, see
 [docs/research_protocol.md](docs/research_protocol.md) and
-[docs/hardware_profile.md](docs/hardware_profile.md).
+[docs/hardware_profile.md](docs/hardware_profile.md). Baseline experiment
+results are tracked in [docs/baseline_results.md](docs/baseline_results.md).

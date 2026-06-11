@@ -35,9 +35,9 @@ Outputs are written to `outputs/experiments/latest/`:
 
 ## Research Roadmap
 
-1. Replace coarse wrist capture with explicit gripper contact geometry.
-2. Add noisy observation streams and a trajectory estimator.
-3. Introduce model predictive control for interception timing.
+1. Add noisy observation streams and a trajectory estimator.
+2. Introduce model predictive control for interception timing.
+3. Replace the two-pad fixture with articulated grippers and tactile sensing.
 4. Add collision constraints and inter-arm safety checks.
 5. Port the validated controller into ROS 2.
 6. Move rendering and sensor generation into Isaac Sim.

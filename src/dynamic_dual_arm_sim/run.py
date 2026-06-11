@@ -38,6 +38,16 @@ class InterceptConfig:
 
 
 @dataclass(frozen=True)
+class GripperConfig:
+    half_gap_m: float
+    pad_half_extents_m: np.ndarray
+    pad_mass_kg: float
+    lateral_friction: float
+    contact_stiffness: float
+    contact_damping: float
+
+
+@dataclass(frozen=True)
 class CameraConfig:
     width: int
     height: int
@@ -52,6 +62,7 @@ class SimConfig:
     projectile: ProjectileConfig
     arms: ArmConfig
     intercept: InterceptConfig
+    gripper: GripperConfig
     camera: CameraConfig
 
 
@@ -64,6 +75,7 @@ def load_config(path: Path) -> SimConfig:
     projectile = raw["projectile"]
     arms = raw["arms"]
     intercept = raw["intercept"]
+    gripper = raw["gripper"]
     camera = raw["camera"]
     return SimConfig(
         time_step=float(raw["time_step"]),
@@ -86,6 +98,14 @@ def load_config(path: Path) -> SimConfig:
             target_time_seconds=float(intercept["target_time_seconds"]),
             capture_distance_m=float(intercept["capture_distance_m"]),
             stabilize_height_m=float(intercept["stabilize_height_m"]),
+        ),
+        gripper=GripperConfig(
+            half_gap_m=float(gripper["half_gap_m"]),
+            pad_half_extents_m=_array(gripper["pad_half_extents_m"]),
+            pad_mass_kg=float(gripper["pad_mass_kg"]),
+            lateral_friction=float(gripper["lateral_friction"]),
+            contact_stiffness=float(gripper["contact_stiffness"]),
+            contact_damping=float(gripper["contact_damping"]),
         ),
         camera=CameraConfig(
             width=int(camera["width"]),
@@ -141,6 +161,10 @@ def create_arm(base_position: np.ndarray, base_yaw: float) -> int:
     return arm
 
 
+def end_effector_link_index(body: int) -> int:
+    return active_joint_indices(body)[-1]
+
+
 def active_joint_indices(body: int) -> list[int]:
     joints: list[int] = []
     for joint in range(p.getNumJoints(body)):
@@ -152,10 +176,9 @@ def active_joint_indices(body: int) -> list[int]:
 
 def move_arm_to_target(body: int, target: np.ndarray, config: SimConfig) -> None:
     joints = active_joint_indices(body)
-    end_effector_index = joints[-1]
     solution = p.calculateInverseKinematics(
         body,
-        end_effector_index,
+        end_effector_link_index(body),
         target.tolist(),
         maxNumIterations=80,
         residualThreshold=1e-4,
@@ -173,8 +196,48 @@ def move_arm_to_target(body: int, target: np.ndarray, config: SimConfig) -> None
 
 
 def end_effector_position(body: int) -> np.ndarray:
-    joints = active_joint_indices(body)
-    return np.array(p.getLinkState(body, joints[-1], computeForwardKinematics=True)[0])
+    return np.array(p.getLinkState(body, end_effector_link_index(body), computeForwardKinematics=True)[0])
+
+
+def create_gripper_pad(arm: int, config: SimConfig, color: list[float]) -> int:
+    link_index = end_effector_link_index(arm)
+    link_state = p.getLinkState(arm, link_index, computeForwardKinematics=True)
+    pad_half_extents = config.gripper.pad_half_extents_m.tolist()
+    visual = p.createVisualShape(
+        p.GEOM_BOX,
+        halfExtents=pad_half_extents,
+        rgbaColor=color,
+        specularColor=[0.7, 0.7, 0.7],
+    )
+    collision = p.createCollisionShape(p.GEOM_BOX, halfExtents=pad_half_extents)
+    pad = p.createMultiBody(
+        baseMass=config.gripper.pad_mass_kg,
+        baseCollisionShapeIndex=collision,
+        baseVisualShapeIndex=visual,
+        basePosition=link_state[0],
+        baseOrientation=link_state[1],
+    )
+    p.changeDynamics(
+        pad,
+        -1,
+        lateralFriction=config.gripper.lateral_friction,
+        spinningFriction=0.08,
+        rollingFriction=0.03,
+        contactStiffness=config.gripper.contact_stiffness,
+        contactDamping=config.gripper.contact_damping,
+    )
+    for joint in range(-1, p.getNumJoints(arm)):
+        p.setCollisionFilterPair(arm, pad, joint, -1, enableCollision=0)
+    return pad
+
+
+def sync_gripper_pad(arm: int, pad: int) -> None:
+    link_state = p.getLinkState(arm, end_effector_link_index(arm), computeForwardKinematics=True)
+    p.resetBasePositionAndOrientation(pad, link_state[0], link_state[1])
+
+
+def body_position(body: int) -> np.ndarray:
+    return np.array(p.getBasePositionAndOrientation(body)[0])
 
 
 def create_workcell() -> None:
@@ -250,12 +313,20 @@ def run_sim(config: SimConfig, output: Path, render: bool, gui: bool, clean: boo
     projectile = create_projectile(config)
     left_arm = create_arm(config.arms.left_base_position, -math.pi / 2.0)
     right_arm = create_arm(config.arms.right_base_position, math.pi / 2.0)
+    left_pad = create_gripper_pad(left_arm, config, [0.08, 0.52, 0.95, 1.0])
+    right_pad = create_gripper_pad(right_arm, config, [0.95, 0.42, 0.08, 1.0])
+    p.setCollisionFilterPair(left_pad, projectile, -1, -1, enableCollision=0)
+    p.setCollisionFilterPair(right_pad, projectile, -1, -1, enableCollision=0)
+    sync_gripper_pad(left_arm, left_pad)
+    sync_gripper_pad(right_arm, right_pad)
 
     steps = int(config.duration_seconds / config.time_step)
     intercept = predicted_position(config, config.intercept.target_time_seconds)
     intercept[2] = max(intercept[2], config.intercept.stabilize_height_m)
-    left_target = intercept + np.array([-0.16, 0.0, 0.0])
-    right_target = intercept + np.array([0.16, 0.0, 0.0])
+    left_grip_offset = np.array([-config.gripper.half_gap_m, 0.0, 0.0])
+    right_grip_offset = np.array([config.gripper.half_gap_m, 0.0, 0.0])
+    left_target = intercept + left_grip_offset
+    right_target = intercept + right_grip_offset
 
     captured = False
     capture_step: int | None = None
@@ -273,18 +344,23 @@ def run_sim(config: SimConfig, output: Path, render: bool, gui: bool, clean: boo
         predicted[2] = max(predicted[2], config.intercept.stabilize_height_m)
 
         blend = min(step / max(steps * 0.25, 1), 1.0)
-        move_arm_to_target(left_arm, (1.0 - blend) * left_target + blend * (predicted + [-0.16, 0.0, 0.0]), config)
-        move_arm_to_target(right_arm, (1.0 - blend) * right_target + blend * (predicted + [0.16, 0.0, 0.0]), config)
+        move_arm_to_target(left_arm, (1.0 - blend) * left_target + blend * (predicted + left_grip_offset), config)
+        move_arm_to_target(right_arm, (1.0 - blend) * right_target + blend * (predicted + right_grip_offset), config)
+
+        sync_gripper_pad(left_arm, left_pad)
+        sync_gripper_pad(right_arm, right_pad)
 
         left_effector = end_effector_position(left_arm)
         right_effector = end_effector_position(right_arm)
-        left_contact = object_position + np.array([-0.16, 0.0, 0.0])
-        right_contact = object_position + np.array([0.16, 0.0, 0.0])
+        left_pad_position = body_position(left_pad)
+        right_pad_position = body_position(right_pad)
+        left_contact = object_position + left_grip_offset
+        right_contact = object_position + right_grip_offset
         left_distance = float(np.linalg.norm(left_effector - object_position))
         right_distance = float(np.linalg.norm(right_effector - object_position))
         contact_error = max(
-            float(np.linalg.norm(left_effector - left_contact)),
-            float(np.linalg.norm(right_effector - right_contact)),
+            float(np.linalg.norm(left_pad_position - left_contact)),
+            float(np.linalg.norm(right_pad_position - right_contact)),
         )
         dual_distance = max(left_distance, right_distance)
         min_left_distance = min(min_left_distance, left_distance)
@@ -298,7 +374,7 @@ def run_sim(config: SimConfig, output: Path, render: bool, gui: bool, clean: boo
             p.resetBaseVelocity(projectile, linearVelocity=[0.0, 0.0, 0.0], angularVelocity=[0.0, 0.0, 0.0])
 
         if captured:
-            hold_position = 0.5 * (end_effector_position(left_arm) + end_effector_position(right_arm))
+            hold_position = 0.5 * (body_position(left_pad) + body_position(right_pad))
             p.resetBasePositionAndOrientation(projectile, hold_position.tolist(), [0.0, 0.0, 0.0, 1.0])
 
         p.stepSimulation()
@@ -316,6 +392,9 @@ def run_sim(config: SimConfig, output: Path, render: bool, gui: bool, clean: boo
         "minimum_right_distance_m": round(min_right_distance, 4),
         "minimum_dual_capture_distance_m": round(min_dual_distance, 4),
         "minimum_contact_error_m": round(min_contact_error, 4),
+        "capture_threshold_m": config.intercept.capture_distance_m,
+        "gripper_half_gap_m": config.gripper.half_gap_m,
+        "pad_half_extents_m": [round(float(v), 4) for v in config.gripper.pad_half_extents_m],
         "intercept_position_m": [round(float(v), 4) for v in intercept],
         "frames_written": len(frame_paths),
     }

@@ -9,9 +9,17 @@
     "mass": 0.35
   },
   "intercept": {
-    "target_time_seconds": 0.72,
-    "capture_distance_m": 0.37,
+    "target_time_seconds": 0.55,
+    "capture_distance_m": 0.045,
     "stabilize_height_m": 1.05
+  },
+  "gripper": {
+    "half_gap_m": 0.16,
+    "pad_half_extents_m": [0.025, 0.075, 0.075],
+    "pad_mass_kg": 0.0,
+    "lateral_friction": 1.2,
+    "contact_stiffness": 1200.0,
+    "contact_damping": 35.0
   },
   "arms": {
     "left_base_position": [-0.42, 0.0, 0.68],
