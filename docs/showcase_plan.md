@@ -5,6 +5,14 @@
 Start with a 30-second version. Once the simulation is stable, expand it into a
 2-3 minute technical film.
 
+The current repository can already generate the first raw video artifact:
+
+```bash
+scripts/run_demo.sh
+```
+
+The generated file is `outputs/dual_arm_interception.mp4`.
+
 ## 30-Second Cut
 
 1. Wide shot of the industrial workcell.

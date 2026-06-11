@@ -46,12 +46,27 @@ Outputs are written to `outputs/`:
 
 - `metrics.json` with capture result, distances, and timing
 - `frames/` with camera renders when `--render` is enabled
+- `dual_arm_interception.mp4` when the video script is used
 
 If you already have the dependencies globally installed, you can run without a
 virtual environment:
 
 ```bash
 PYTHONPATH=src python3 -m dynamic_dual_arm_sim.run --config configs/intercept_demo.json
+```
+
+## Create The First Showcase Clip
+
+Run the full local demo pipeline:
+
+```bash
+scripts/run_demo.sh
+```
+
+This renders the simulation frames and encodes them into:
+
+```text
+outputs/dual_arm_interception.mp4
 ```
 
 ## Development Direction
