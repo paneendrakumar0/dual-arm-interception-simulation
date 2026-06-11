@@ -9,10 +9,13 @@ handling, telemetry, and repeatable evaluation.
 ## Modules
 
 - `dynamic_dual_arm_sim.run`: local deterministic PyBullet simulation runner.
+- `dynamic_dual_arm_sim.experiments`: randomized experiment runner that writes
+  aggregate metrics, CSV data, and a Markdown report.
 - `configs/intercept_demo.json`: scenario tuning for projectile, arms, camera,
   and capture thresholds.
 - `outputs/metrics.json`: repeatable benchmark result for each run.
 - `outputs/frames/`: rendered image sequence for showcase editing.
+- `outputs/experiments/latest/`: Monte Carlo experiment artifacts.
 
 ## Near-Term ROS 2 Graph
 

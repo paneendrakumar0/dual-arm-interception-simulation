@@ -69,6 +69,20 @@ This renders the simulation frames and encodes them into:
 outputs/dual_arm_interception.mp4
 ```
 
+## Run Scientific Experiments
+
+Run randomized launch trials and generate a lab-style report:
+
+```bash
+scripts/run_experiments.sh
+```
+
+The experiment suite writes:
+
+- `outputs/experiments/latest/summary.json`
+- `outputs/experiments/latest/trials.csv`
+- `outputs/experiments/latest/report.md`
+
 ## Development Direction
 
 Phase 1 is the local deterministic simulator. Phase 2 adds ROS 2 nodes for
@@ -78,3 +92,7 @@ contact modeling, and a 30-180 second CCA R&D showcase film.
 
 See [docs/architecture.md](docs/architecture.md) and
 [docs/showcase_plan.md](docs/showcase_plan.md).
+
+For the research workflow and target hardware profile, see
+[docs/research_protocol.md](docs/research_protocol.md) and
+[docs/hardware_profile.md](docs/hardware_profile.md).
