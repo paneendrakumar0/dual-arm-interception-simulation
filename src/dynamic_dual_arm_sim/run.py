@@ -52,6 +52,9 @@ class CameraConfig:
     width: int
     height: int
     frame_stride: int
+    mode: str
+    overlay: bool
+    letterbox: bool
 
 
 @dataclass(frozen=True)
@@ -111,6 +114,9 @@ def load_config(path: Path) -> SimConfig:
             width=int(camera["width"]),
             height=int(camera["height"]),
             frame_stride=int(camera["frame_stride"]),
+            mode=str(camera.get("mode", "static")),
+            overlay=bool(camera.get("overlay", False)),
+            letterbox=bool(camera.get("letterbox", False)),
         ),
     )
 
@@ -257,12 +263,98 @@ def create_workcell() -> None:
         baseVisualShapeIndex=table_visual,
         basePosition=[0.0, 0.15, 0.62],
     )
+    floor_visual = p.createVisualShape(
+        p.GEOM_BOX,
+        halfExtents=[4.2, 3.2, 0.018],
+        rgbaColor=[0.022, 0.025, 0.03, 1.0],
+        specularColor=[0.12, 0.14, 0.16],
+    )
+    p.createMultiBody(
+        baseMass=0,
+        baseCollisionShapeIndex=-1,
+        baseVisualShapeIndex=floor_visual,
+        basePosition=[0.0, 0.25, -0.012],
+    )
+    back_wall_visual = p.createVisualShape(
+        p.GEOM_BOX,
+        halfExtents=[4.2, 0.035, 1.55],
+        rgbaColor=[0.028, 0.032, 0.038, 1.0],
+    )
+    p.createMultiBody(
+        baseMass=0,
+        baseCollisionShapeIndex=-1,
+        baseVisualShapeIndex=back_wall_visual,
+        basePosition=[0.0, 1.72, 1.35],
+    )
+    side_wall_visual = p.createVisualShape(
+        p.GEOM_BOX,
+        halfExtents=[0.035, 3.1, 1.55],
+        rgbaColor=[0.025, 0.028, 0.034, 1.0],
+    )
+    p.createMultiBody(
+        baseMass=0,
+        baseCollisionShapeIndex=-1,
+        baseVisualShapeIndex=side_wall_visual,
+        basePosition=[-2.45, 0.15, 1.35],
+    )
+    p.createMultiBody(
+        baseMass=0,
+        baseCollisionShapeIndex=-1,
+        baseVisualShapeIndex=side_wall_visual,
+        basePosition=[2.45, 0.15, 1.35],
+    )
+    ceiling_visual = p.createVisualShape(
+        p.GEOM_BOX,
+        halfExtents=[4.2, 3.2, 0.02],
+        rgbaColor=[0.018, 0.021, 0.026, 1.0],
+    )
+    p.createMultiBody(
+        baseMass=0,
+        baseCollisionShapeIndex=-1,
+        baseVisualShapeIndex=ceiling_visual,
+        basePosition=[0.0, 0.25, 2.9],
+    )
+    light_strip = p.createVisualShape(
+        p.GEOM_BOX,
+        halfExtents=[2.15, 0.012, 0.025],
+        rgbaColor=[0.0, 0.75, 1.0, 1.0],
+        specularColor=[0.9, 0.9, 1.0],
+    )
+    p.createMultiBody(
+        baseMass=0,
+        baseCollisionShapeIndex=-1,
+        baseVisualShapeIndex=light_strip,
+        basePosition=[0.0, 1.67, 1.92],
+    )
 
 
-def camera_image(config: CameraConfig) -> np.ndarray:
+def smoothstep(value: float) -> float:
+    value = min(max(value, 0.0), 1.0)
+    return value * value * (3.0 - 2.0 * value)
+
+
+def cinematic_camera_pose(progress: float, focus: np.ndarray) -> tuple[list[float], list[float]]:
+    eased = smoothstep(progress)
+    angle = math.radians(-82.0 + 104.0 * eased)
+    radius = 2.8 - 0.55 * math.sin(math.pi * eased)
+    height = 1.5 + 0.34 * math.sin(math.pi * eased)
+    eye = [
+        float(radius * math.cos(angle)),
+        float(0.08 + radius * math.sin(angle)),
+        float(height),
+    ]
+    target = [float(focus[0]), float(focus[1]), float(focus[2])]
+    return eye, target
+
+
+def camera_image(config: CameraConfig, progress: float, focus: np.ndarray) -> np.ndarray:
+    if config.mode == "cinematic_orbit":
+        eye, target = cinematic_camera_pose(progress, focus)
+    else:
+        eye, target = [2.1, -2.2, 1.55], [0.0, 0.15, 1.0]
     view = p.computeViewMatrix(
-        cameraEyePosition=[2.1, -2.2, 1.55],
-        cameraTargetPosition=[0.0, 0.15, 1.0],
+        cameraEyePosition=eye,
+        cameraTargetPosition=target,
         cameraUpVector=[0.0, 0.0, 1.0],
     )
     projection = p.computeProjectionMatrixFOV(
@@ -281,12 +373,88 @@ def camera_image(config: CameraConfig) -> np.ndarray:
     return np.reshape(rgba, (config.height, config.width, 4))[:, :, :3]
 
 
+def create_trajectory_visualization(config: SimConfig, intercept: np.ndarray) -> list[int]:
+    bodies: list[int] = []
+    dot_visual = p.createVisualShape(
+        p.GEOM_SPHERE,
+        radius=0.014,
+        rgbaColor=[0.0, 0.82, 1.0, 0.78],
+        specularColor=[0.8, 0.95, 1.0],
+    )
+    intercept_visual = p.createVisualShape(
+        p.GEOM_SPHERE,
+        radius=0.04,
+        rgbaColor=[0.0, 1.0, 0.48, 1.0],
+        specularColor=[0.7, 1.0, 0.8],
+    )
+    for sample in np.linspace(0.0, config.intercept.target_time_seconds, 24):
+        position = predicted_position(config, float(sample))
+        body = p.createMultiBody(
+            baseMass=0,
+            baseCollisionShapeIndex=-1,
+            baseVisualShapeIndex=dot_visual,
+            basePosition=position.tolist(),
+        )
+        bodies.append(body)
+    bodies.append(
+        p.createMultiBody(
+            baseMass=0,
+            baseCollisionShapeIndex=-1,
+            baseVisualShapeIndex=intercept_visual,
+            basePosition=intercept.tolist(),
+        )
+    )
+    return bodies
+
+
 def prepare_output_dir(output: Path, clean: bool) -> Path:
     if clean and output.exists():
         shutil.rmtree(output)
     frame_dir = output / "frames"
     frame_dir.mkdir(parents=True, exist_ok=True)
     return frame_dir
+
+
+def apply_cinematic_overlay(
+    image: np.ndarray,
+    config: CameraConfig,
+    sim_time: float,
+    captured: bool,
+    contact_error: float,
+    threshold: float,
+) -> np.ndarray:
+    if not config.overlay and not config.letterbox:
+        return image
+
+    from PIL import Image, ImageDraw, ImageFont
+
+    frame = Image.fromarray(image.astype(np.uint8), mode="RGB")
+    draw = ImageDraw.Draw(frame, "RGBA")
+    width, height = frame.size
+    if config.letterbox:
+        bar = max(44, int(height * 0.065))
+        draw.rectangle([0, 0, width, bar], fill=(0, 0, 0, 230))
+        draw.rectangle([0, height - bar, width, height], fill=(0, 0, 0, 230))
+    if config.overlay:
+        try:
+            title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", max(24, width // 54))
+            hud_font = ImageFont.truetype("DejaVuSansMono.ttf", max(16, width // 86))
+        except OSError:
+            title_font = ImageFont.load_default()
+            hud_font = ImageFont.load_default()
+        status = "CAPTURE LOCK" if captured else "PREDICTIVE INTERCEPT"
+        status_color = (72, 255, 166, 230) if captured else (0, 200, 255, 230)
+        draw.text((42, 22), "DYNAMIC DUAL-ARM INTERCEPTION LAB", font=title_font, fill=(240, 248, 255, 245))
+        draw.text((42, height - 72), status, font=hud_font, fill=status_color)
+        draw.text(
+            (42, height - 42),
+            f"t={sim_time:05.3f}s  contact_error={contact_error:0.4f}m  threshold={threshold:0.3f}m",
+            font=hud_font,
+            fill=(222, 235, 242, 230),
+        )
+        draw.line([(width - 360, height - 54), (width - 44, height - 54)], fill=(0, 200, 255, 180), width=2)
+        draw.text((width - 360, height - 42), "CCA R&D SIMULATION FOOTAGE", font=hud_font, fill=(222, 235, 242, 220))
+    return np.array(frame)
 
 
 def write_frame(path: Path, image: np.ndarray) -> None:
@@ -323,6 +491,7 @@ def run_sim(config: SimConfig, output: Path, render: bool, gui: bool, clean: boo
     steps = int(config.duration_seconds / config.time_step)
     intercept = predicted_position(config, config.intercept.target_time_seconds)
     intercept[2] = max(intercept[2], config.intercept.stabilize_height_m)
+    create_trajectory_visualization(config, intercept)
     left_grip_offset = np.array([-config.gripper.half_gap_m, 0.0, 0.0])
     right_grip_offset = np.array([config.gripper.half_gap_m, 0.0, 0.0])
     left_target = intercept + left_grip_offset
@@ -380,7 +549,17 @@ def run_sim(config: SimConfig, output: Path, render: bool, gui: bool, clean: boo
         p.stepSimulation()
 
         if render and step % config.camera.frame_stride == 0:
-            image = camera_image(config.camera)
+            progress = step / max(steps - 1, 1)
+            focus = np.array([0.0, 0.08, 1.32])
+            image = camera_image(config.camera, progress, focus)
+            image = apply_cinematic_overlay(
+                image=image,
+                config=config.camera,
+                sim_time=sim_time,
+                captured=captured,
+                contact_error=min_contact_error,
+                threshold=config.intercept.capture_distance_m,
+            )
             frame_path = frame_dir / f"frame_{len(frame_paths):04d}.png"
             write_frame(frame_path, image)
             frame_paths.append(str(frame_path))

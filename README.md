@@ -69,6 +69,19 @@ This renders the simulation frames and encodes them into:
 outputs/dual_arm_interception.mp4
 ```
 
+For the cinematic 1080p render preset with orbit camera, trajectory markers,
+letterboxing, and research HUD overlays:
+
+```bash
+scripts/run_cinematic.sh
+```
+
+This writes:
+
+```text
+outputs/dual_arm_interception_cinematic.mp4
+```
+
 ## Run Scientific Experiments
 
 Run randomized launch trials and generate a lab-style report:

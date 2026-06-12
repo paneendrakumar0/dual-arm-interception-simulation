@@ -13,6 +13,26 @@ scripts/run_demo.sh
 
 The generated file is `outputs/dual_arm_interception.mp4`.
 
+For the cinematic render preset:
+
+```bash
+scripts/run_cinematic.sh
+```
+
+The generated file is `outputs/dual_arm_interception_cinematic.mp4`.
+
+Current cinematic features:
+
+- HD frame export
+- orbit/drone-style camera motion
+- trajectory markers and intercept beacon
+- letterboxed research-footage look
+- metric HUD with live capture status and contact error
+
+PyBullet is the fast scientific storyboard renderer. The final photoreal
+"Hollywood" pass should use Isaac Sim or Blender after the controller, contact
+model, and experiment protocol are validated.
+
 ## 30-Second Cut
 
 1. Wide shot of the industrial workcell.

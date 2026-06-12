@@ -29,8 +29,11 @@
     "velocity_gain": 1.0
   },
   "camera": {
-    "width": 960,
-    "height": 540,
-    "frame_stride": 12
+    "width": 1280,
+    "height": 720,
+    "frame_stride": 6,
+    "mode": "cinematic_orbit",
+    "overlay": true,
+    "letterbox": true
   }
 }
