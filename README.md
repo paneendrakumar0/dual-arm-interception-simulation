@@ -98,10 +98,7 @@ The experiment suite writes:
 
 ## Development Direction
 
-Phase 1 is the local deterministic simulator. Phase 2 adds ROS 2 nodes for
-trajectory prediction, command streaming, telemetry, and replay. Phase 3 ports
-the scene into Isaac Sim for photorealistic capture, synthetic sensors, tactile
-contact modeling, and a 30-180 second CCA R&D showcase film.
+Still in development
 
 See [docs/architecture.md](docs/architecture.md) and
 [docs/showcase_plan.md](docs/showcase_plan.md).
