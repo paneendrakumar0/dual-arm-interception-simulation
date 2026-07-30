@@ -34,3 +34,21 @@ Failure cases from this baseline are valuable. They show that the controller is
 not yet robust to the full randomized launch distribution, especially low
 vertical-velocity or high-forward-velocity cases. The next research step is to
 replace the fixed intercept timing with an online intercept-time optimizer.
+
+## Online Intercept-Time Optimizer
+
+The first optimizer iteration adds gravity-consistent online prediction,
+sampled intercept-time selection, absolute-deadline locking, and a
+calibrated-speed confidence fallback.
+
+Using the same 24 trials and seed:
+
+- Corrected fixed-time ablation: 21 captures (87.50%)
+- Confidence-gated online optimizer: 22 captures (91.67%)
+- Optimizer mean contact error: 0.05268 m
+- Optimizer mean capture time: 0.58012 s
+- Mean selected intercept time: 0.50521 s
+
+This small seeded benchmark is evidence for continuing the optimizer work, not
+a general robustness claim. The next experiment should use more seeds and
+report confidence intervals before expanding the calibrated speed range.

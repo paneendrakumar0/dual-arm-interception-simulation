@@ -36,7 +36,8 @@ Outputs are written to `outputs/experiments/latest/`:
 ## Research Roadmap
 
 1. Add noisy observation streams and a trajectory estimator.
-2. Introduce model predictive control for interception timing.
+2. Extend the sampled online interception optimizer into constrained model
+   predictive control.
 3. Replace the two-pad fixture with articulated grippers and tactile sensing.
 4. Add collision constraints and inter-arm safety checks.
 5. Port the validated controller into ROS 2.

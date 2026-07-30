@@ -90,6 +90,18 @@ Run randomized launch trials and generate a lab-style report:
 scripts/run_experiments.sh
 ```
 
+The controller now optimizes interception time online from the measured
+projectile state, gravity, and estimated arm travel time. It uses the
+fixed-time controller as a confidence fallback when transverse target speed is
+outside the optimizer's calibrated range. To run the fixed-time controller
+alone as an ablation:
+
+```bash
+PYTHONPATH=src python3 -m dynamic_dual_arm_sim.experiments \
+  --disable-optimizer \
+  --output outputs/experiments/fixed_time
+```
+
 The experiment suite writes:
 
 - `outputs/experiments/latest/summary.json`

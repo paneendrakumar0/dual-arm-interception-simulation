@@ -47,6 +47,7 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
     captured_rows = [row for row in rows if row["captured"]]
     contact_errors = numeric_values(rows, "minimum_contact_error_m")
     capture_times = numeric_values(captured_rows, "capture_time_seconds")
+    selected_times = numeric_values(rows, "selected_intercept_time_seconds")
     return {
         "trial_count": len(rows),
         "captured_count": len(captured_rows),
@@ -57,6 +58,9 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "std_capture_time_seconds": round(pstdev(capture_times), 5) if len(capture_times) > 1 else 0.0,
         "best_contact_error_m": round(min(contact_errors), 5) if contact_errors else None,
         "worst_contact_error_m": round(max(contact_errors), 5) if contact_errors else None,
+        "mean_selected_intercept_time_seconds": (
+            round(mean(selected_times), 5) if selected_times else None
+        ),
     }
 
 
@@ -67,6 +71,7 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "capture_time_seconds",
         "minimum_contact_error_m",
         "minimum_dual_capture_distance_m",
+        "selected_intercept_time_seconds",
         "start_position_m",
         "start_velocity_mps",
         "projectile_mass_kg",
@@ -101,6 +106,7 @@ def write_report(path: Path, summary: dict[str, Any], rows: list[dict[str, Any]]
         f"- Capture time standard deviation: {summary['std_capture_time_seconds']} s",
         f"- Best contact error: {summary['best_contact_error_m']} m",
         f"- Worst contact error: {summary['worst_contact_error_m']} m",
+        f"- Mean selected intercept time: {summary['mean_selected_intercept_time_seconds']} s",
         "",
         "## Interpretation",
         "",
@@ -124,9 +130,20 @@ def write_report(path: Path, summary: dict[str, Any], rows: list[dict[str, Any]]
     path.write_text("\n".join(lines))
 
 
-def run_experiment_suite(config_path: Path, output: Path, trials: int, seed: int) -> dict[str, Any]:
+def run_experiment_suite(
+    config_path: Path,
+    output: Path,
+    trials: int,
+    seed: int,
+    disable_optimizer: bool = False,
+) -> dict[str, Any]:
     output.mkdir(parents=True, exist_ok=True)
     base = load_config(config_path)
+    if disable_optimizer:
+        base = replace(
+            base,
+            intercept=replace(base.intercept, optimizer_enabled=False),
+        )
     rng = np.random.default_rng(seed)
     rows: list[dict[str, Any]] = []
 
@@ -146,6 +163,9 @@ def run_experiment_suite(config_path: Path, output: Path, trials: int, seed: int
                 "capture_time_seconds": metrics["capture_time_seconds"],
                 "minimum_contact_error_m": metrics["minimum_contact_error_m"],
                 "minimum_dual_capture_distance_m": metrics["minimum_dual_capture_distance_m"],
+                "selected_intercept_time_seconds": metrics[
+                    "selected_intercept_time_seconds"
+                ],
                 "start_position_m": format_vector(trial_config.projectile.start_position),
                 "start_velocity_mps": format_vector(trial_config.projectile.start_velocity),
                 "projectile_mass_kg": round(trial_config.projectile.mass, 4),
@@ -166,12 +186,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, default=Path("outputs/experiments/latest"))
     parser.add_argument("--trials", type=int, default=24)
     parser.add_argument("--seed", type=int, default=20260611)
+    parser.add_argument(
+        "--disable-optimizer",
+        action="store_true",
+        help="Use the fixed target time for baseline comparisons.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    summary = run_experiment_suite(args.config, args.output, args.trials, args.seed)
+    summary = run_experiment_suite(
+        args.config,
+        args.output,
+        args.trials,
+        args.seed,
+        disable_optimizer=args.disable_optimizer,
+    )
     print(json.dumps(summary, indent=2))
 
 

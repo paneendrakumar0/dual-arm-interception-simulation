@@ -9,6 +9,10 @@ handling, telemetry, and repeatable evaluation.
 ## Modules
 
 - `dynamic_dual_arm_sim.run`: local deterministic PyBullet simulation runner.
+- Online intercept-time optimizer: samples the measured ballistic trajectory
+  and selects a point using dual-arm travel time, synchronization, and
+  workcell-position costs. A calibrated-speed confidence gate retains the
+  fixed-time controller for target states not yet validated for optimization.
 - `dynamic_dual_arm_sim.experiments`: randomized experiment runner that writes
   aggregate metrics, CSV data, and a Markdown report.
 - `configs/intercept_demo.json`: scenario tuning for projectile, arms, camera,
@@ -41,7 +45,7 @@ sensing.
 
 ## Research Features To Add
 
-- Model predictive control for intercept timing.
+- Add constrained MPC on top of the current sampled intercept-time optimizer.
 - Learned trajectory correction with noisy visual measurements.
 - Domain randomization for object mass, launch velocity, friction, and lighting.
 - Contact-rich stabilization once the object is captured.

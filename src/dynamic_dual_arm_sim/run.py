@@ -4,7 +4,7 @@ import argparse
 import json
 import math
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +35,15 @@ class InterceptConfig:
     target_time_seconds: float
     capture_distance_m: float
     stabilize_height_m: float
+    optimizer_enabled: bool
+    min_lead_time_seconds: float
+    max_lead_time_seconds: float
+    optimizer_samples: int
+    cartesian_speed_mps: float
+    controller_latency_seconds: float
+    optimizer_speed_limit_mps: float
+    replan_interval_seconds: float
+    lock_lead_time_seconds: float
 
 
 @dataclass(frozen=True)
@@ -101,6 +110,23 @@ def load_config(path: Path) -> SimConfig:
             target_time_seconds=float(intercept["target_time_seconds"]),
             capture_distance_m=float(intercept["capture_distance_m"]),
             stabilize_height_m=float(intercept["stabilize_height_m"]),
+            optimizer_enabled=bool(intercept.get("optimizer_enabled", True)),
+            min_lead_time_seconds=float(intercept.get("min_lead_time_seconds", 0.15)),
+            max_lead_time_seconds=float(intercept.get("max_lead_time_seconds", 0.9)),
+            optimizer_samples=int(intercept.get("optimizer_samples", 31)),
+            cartesian_speed_mps=float(intercept.get("cartesian_speed_mps", 1.2)),
+            controller_latency_seconds=float(
+                intercept.get("controller_latency_seconds", 0.0)
+            ),
+            optimizer_speed_limit_mps=float(
+                intercept.get("optimizer_speed_limit_mps", 0.8)
+            ),
+            replan_interval_seconds=float(
+                intercept.get("replan_interval_seconds", 0.05)
+            ),
+            lock_lead_time_seconds=float(
+                intercept.get("lock_lead_time_seconds", 0.25)
+            ),
         ),
         gripper=GripperConfig(
             half_gap_m=float(gripper["half_gap_m"]),
@@ -122,11 +148,87 @@ def load_config(path: Path) -> SimConfig:
 
 
 def predicted_position(config: SimConfig, t: float) -> np.ndarray:
-    return (
-        config.projectile.start_position
-        + config.projectile.start_velocity * t
-        + 0.5 * config.gravity * t * t
+    return ballistic_position(
+        config.projectile.start_position,
+        config.projectile.start_velocity,
+        config.gravity,
+        t,
     )
+
+
+def ballistic_position(
+    position: np.ndarray,
+    velocity: np.ndarray,
+    gravity: np.ndarray,
+    lead_time: float,
+) -> np.ndarray:
+    return position + velocity * lead_time + 0.5 * gravity * lead_time * lead_time
+
+
+def optimize_intercept(
+    config: SimConfig,
+    object_position: np.ndarray,
+    object_velocity: np.ndarray,
+    left_effector: np.ndarray,
+    right_effector: np.ndarray,
+) -> tuple[float, np.ndarray]:
+    """Select a reachable future point on the measured ballistic trajectory."""
+    intercept_config = config.intercept
+    lead_times = np.linspace(
+        intercept_config.min_lead_time_seconds,
+        intercept_config.max_lead_time_seconds,
+        max(intercept_config.optimizer_samples, 2),
+    )
+    left_offset = np.array([-config.gripper.half_gap_m, 0.0, 0.0])
+    right_offset = np.array([config.gripper.half_gap_m, 0.0, 0.0])
+    best_score = float("inf")
+    if config.gravity[2] < 0.0:
+        apex_time = -float(object_velocity[2]) / float(config.gravity[2])
+        best_lead_time = float(np.clip(apex_time, lead_times[0], lead_times[-1]))
+    else:
+        best_lead_time = float(lead_times[0])
+    best_position = ballistic_position(
+        object_position,
+        object_velocity,
+        config.gravity,
+        best_lead_time,
+    )
+
+    for lead_time_value in lead_times:
+        lead_time = float(lead_time_value)
+        candidate = ballistic_position(
+            object_position,
+            object_velocity,
+            config.gravity,
+            lead_time,
+        )
+        if candidate[2] < intercept_config.stabilize_height_m:
+            continue
+
+        left_distance = float(np.linalg.norm(left_effector - (candidate + left_offset)))
+        right_distance = float(np.linalg.norm(right_effector - (candidate + right_offset)))
+        travel_time = (
+            max(left_distance, right_distance) / intercept_config.cartesian_speed_mps
+            + intercept_config.controller_latency_seconds
+        )
+        late_by = max(travel_time - lead_time, 0.0)
+        timing_error = abs(travel_time - lead_time)
+        arm_imbalance = abs(left_distance - right_distance)
+        workcell_offset = math.hypot(float(candidate[0]), float(candidate[1] - 0.15))
+        height_offset = abs(float(candidate[2] - 1.3))
+        score = (
+            10.0 * late_by
+            + timing_error
+            + 0.20 * arm_imbalance
+            + 0.08 * workcell_offset
+            + 0.04 * height_offset
+        )
+        if score < best_score:
+            best_score = score
+            best_lead_time = lead_time
+            best_position = candidate
+
+    return best_lead_time, best_position
 
 
 def connect(render_gui: bool) -> int:
@@ -490,7 +592,6 @@ def run_sim(config: SimConfig, output: Path, render: bool, gui: bool, clean: boo
 
     steps = int(config.duration_seconds / config.time_step)
     intercept = predicted_position(config, config.intercept.target_time_seconds)
-    intercept[2] = max(intercept[2], config.intercept.stabilize_height_m)
     create_trajectory_visualization(config, intercept)
     left_grip_offset = np.array([-config.gripper.half_gap_m, 0.0, 0.0])
     right_grip_offset = np.array([config.gripper.half_gap_m, 0.0, 0.0])
@@ -504,13 +605,60 @@ def run_sim(config: SimConfig, output: Path, render: bool, gui: bool, clean: boo
     min_dual_distance = float("inf")
     min_contact_error = float("inf")
     frame_paths: list[str] = []
+    selected_intercept_time = config.intercept.target_time_seconds
+    selected_intercept_position = intercept.copy()
+    optimizer_updates = 0
+    optimizer_fallback_steps = 0
+    last_optimizer_update_time = -float("inf")
+    optimizer_in_calibrated_range = (
+        float(np.linalg.norm(config.projectile.start_velocity[:2]))
+        <= config.intercept.optimizer_speed_limit_mps
+    )
 
     for step in range(steps):
         sim_time = step * config.time_step
         object_position = np.array(p.getBasePositionAndOrientation(projectile)[0])
-        time_to_intercept = max(config.intercept.target_time_seconds - sim_time, 0.0)
-        predicted = object_position + np.array(p.getBaseVelocity(projectile)[0]) * time_to_intercept
-        predicted[2] = max(predicted[2], config.intercept.stabilize_height_m)
+        object_velocity = np.array(p.getBaseVelocity(projectile)[0])
+        left_effector = end_effector_position(left_arm)
+        right_effector = end_effector_position(right_arm)
+        if config.intercept.optimizer_enabled and optimizer_in_calibrated_range:
+            time_until_plan = selected_intercept_time - sim_time
+            replan_due = (
+                step == 0
+                or sim_time - last_optimizer_update_time
+                >= config.intercept.replan_interval_seconds
+            )
+            plan_unlocked = (
+                step == 0
+                or time_until_plan > config.intercept.lock_lead_time_seconds
+            )
+            if not captured and replan_due and plan_unlocked:
+                lead_time, planned_position = optimize_intercept(
+                    config,
+                    object_position,
+                    object_velocity,
+                    left_effector,
+                    right_effector,
+                )
+                candidate_time = sim_time + lead_time
+                # Never let repeated replanning chase the projectile by moving
+                # an established absolute deadline later.
+                if step == 0 or candidate_time < selected_intercept_time:
+                    selected_intercept_time = candidate_time
+                    selected_intercept_position = planned_position.copy()
+                    optimizer_updates += 1
+                last_optimizer_update_time = sim_time
+            predicted = selected_intercept_position
+        else:
+            if config.intercept.optimizer_enabled and not captured:
+                optimizer_fallback_steps += 1
+            time_to_intercept = max(config.intercept.target_time_seconds - sim_time, 0.0)
+            predicted = ballistic_position(
+                object_position,
+                object_velocity,
+                config.gravity,
+                time_to_intercept,
+            )
 
         blend = min(step / max(steps * 0.25, 1), 1.0)
         move_arm_to_target(left_arm, (1.0 - blend) * left_target + blend * (predicted + left_grip_offset), config)
@@ -575,6 +723,13 @@ def run_sim(config: SimConfig, output: Path, render: bool, gui: bool, clean: boo
         "gripper_half_gap_m": config.gripper.half_gap_m,
         "pad_half_extents_m": [round(float(v), 4) for v in config.gripper.pad_half_extents_m],
         "intercept_position_m": [round(float(v), 4) for v in intercept],
+        "optimizer_enabled": config.intercept.optimizer_enabled,
+        "selected_intercept_time_seconds": round(float(selected_intercept_time), 4),
+        "selected_intercept_position_m": [
+            round(float(v), 4) for v in selected_intercept_position
+        ],
+        "optimizer_updates": optimizer_updates,
+        "optimizer_fallback_steps": optimizer_fallback_steps,
         "frames_written": len(frame_paths),
     }
     output.mkdir(parents=True, exist_ok=True)
@@ -590,13 +745,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--render", action="store_true", help="Write camera frames to the output folder.")
     parser.add_argument("--gui", action="store_true", help="Open the PyBullet GUI for interactive viewing.")
     parser.add_argument("--keep-output", action="store_true", help="Do not clean the output folder first.")
+    parser.add_argument(
+        "--disable-optimizer",
+        action="store_true",
+        help="Use the fixed target time for baseline comparisons.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    config = load_config(args.config)
+    if args.disable_optimizer:
+        config = replace(
+            config,
+            intercept=replace(config.intercept, optimizer_enabled=False),
+        )
     metrics = run_sim(
-        config=load_config(args.config),
+        config=config,
         output=args.output,
         render=args.render,
         gui=args.gui,

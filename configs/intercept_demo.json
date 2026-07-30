@@ -11,7 +11,16 @@
   "intercept": {
     "target_time_seconds": 0.55,
     "capture_distance_m": 0.045,
-    "stabilize_height_m": 1.05
+    "stabilize_height_m": 1.05,
+    "optimizer_enabled": true,
+    "min_lead_time_seconds": 0.15,
+    "max_lead_time_seconds": 0.9,
+    "optimizer_samples": 31,
+    "cartesian_speed_mps": 1.2,
+    "controller_latency_seconds": 0.0,
+    "optimizer_speed_limit_mps": 0.8,
+    "replan_interval_seconds": 0.05,
+    "lock_lead_time_seconds": 0.25
   },
   "gripper": {
     "half_gap_m": 0.16,
