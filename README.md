@@ -119,6 +119,16 @@ By default this evaluates ten seeds with 100 matched trials per controller
 Wilson confidence intervals, paired outcomes, and all trial data to
 `outputs/benchmarks/latest/`.
 
+Reuse completed physics runs to rebuild the statistical analysis and plots:
+
+```bash
+PYTHONPATH=src python3 -m dynamic_dual_arm_sim.benchmark --reuse-results
+```
+
+The benchmark produces success-rate confidence intervals, an exact paired
+McNemar test, overlapping failure categories, speed-bin comparisons, and plots
+for success rate, contact error, capture time, and failure categories.
+
 ## Development Direction
 
 Still in development
