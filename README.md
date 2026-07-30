@@ -129,6 +129,33 @@ The benchmark produces success-rate confidence intervals, an exact paired
 McNemar test, overlapping failure categories, speed-bin comparisons, and plots
 for success rate, contact error, capture time, and failure categories.
 
+## 1,000-Trial Benchmark Results
+
+The paired multi-seed benchmark found that the current online optimizer does
+not yet outperform fixed-time control:
+
+| Controller | Captures | Success rate | Mean contact error |
+|---|---:|---:|---:|
+| Online optimizer | 751/1,000 | 75.10% | 0.07137 m |
+| Fixed time | 783/1,000 | 78.30% | 0.06627 m |
+
+The paired difference is statistically significant (exact McNemar
+`p = 0.00000094`). The optimizer remains experimental and its speed gate should
+not be expanded until performance improves inside the current 0.8 m/s range.
+
+<p align="center">
+  <img src="docs/figures/benchmark_1000/success_rate.png" width="49%" alt="Controller success rates with confidence intervals">
+  <img src="docs/figures/benchmark_1000/contact_error.png" width="49%" alt="Controller contact error distributions">
+</p>
+
+<p align="center">
+  <img src="docs/figures/benchmark_1000/capture_time.png" width="49%" alt="Controller capture time distributions">
+  <img src="docs/figures/benchmark_1000/failure_categories.png" width="49%" alt="Controller failure categories">
+</p>
+
+See [the complete baseline report](docs/baseline_results.md) for confidence
+intervals, paired outcomes, failure categories, and speed-bin results.
+
 ## Development Direction
 
 Still in development
