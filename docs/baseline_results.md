@@ -52,3 +52,21 @@ Using the same 24 trials and seed:
 This small seeded benchmark is evidence for continuing the optimizer work, not
 a general robustness claim. The next experiment should use more seeds and
 report confidence intervals before expanding the calibrated speed range.
+
+## 1,000-Trial Multi-Seed Robustness Check
+
+The follow-up benchmark used ten seeds, 100 matched launches per seed, and both
+controllers for 2,000 total controller runs.
+
+- Online optimizer: 751/1,000 captures (75.10%, Wilson 95% CI 72.33%-77.68%)
+- Fixed-time controller: 783/1,000 captures (78.30%, Wilson 95% CI 75.64%-80.74%)
+- Both captured: 745 paired launches
+- Optimizer only: 6 paired launches
+- Fixed time only: 38 paired launches
+- Both failed: 211 paired launches
+
+The single-seed optimizer improvement did not generalize. On the larger paired
+benchmark, the current optimizer captured 32 fewer launches and produced a
+higher mean contact error (0.07137 m versus 0.06627 m). The optimizer should
+remain experimental while its reachability score and confidence gate are
+revised against this failure set.

@@ -108,6 +108,17 @@ The experiment suite writes:
 - `outputs/experiments/latest/trials.csv`
 - `outputs/experiments/latest/report.md`
 
+Run the paired multi-seed robustness benchmark:
+
+```bash
+scripts/run_benchmark.sh
+```
+
+By default this evaluates ten seeds with 100 matched trials per controller
+(1,000 launch conditions and 2,000 controller runs total) and writes aggregate
+Wilson confidence intervals, paired outcomes, and all trial data to
+`outputs/benchmarks/latest/`.
+
 ## Development Direction
 
 Still in development
