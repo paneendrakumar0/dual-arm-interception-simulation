@@ -64,9 +64,28 @@ controllers for 2,000 total controller runs.
 - Optimizer only: 6 paired launches
 - Fixed time only: 38 paired launches
 - Both failed: 211 paired launches
+- Exact paired McNemar p-value: 0.00000094
 
 The single-seed optimizer improvement did not generalize. On the larger paired
 benchmark, the current optimizer captured 32 fewer launches and produced a
 higher mean contact error (0.07137 m versus 0.06627 m). The optimizer should
 remain experimental while its reachability score and confidence gate are
 revised against this failure set.
+
+Within the optimizer's active range it underperformed fixed timing in both
+speed bins:
+
+- 0.0-0.6 m/s: 33.33% optimized versus 61.11% fixed time
+- 0.6-0.8 m/s: 71.19% optimized versus 86.44% fixed time
+
+Above 0.8 m/s the two controllers are identical because the confidence gate
+uses fixed-time fallback. These results do not support expanding the optimizer
+speed limit yet.
+
+![Success-rate comparison](figures/benchmark_1000/success_rate.png)
+
+![Contact-error comparison](figures/benchmark_1000/contact_error.png)
+
+![Capture-time comparison](figures/benchmark_1000/capture_time.png)
+
+![Failure categories](figures/benchmark_1000/failure_categories.png)

@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import unittest
 
-from dynamic_dual_arm_sim.benchmark import controller_summary, paired_summary, wilson_interval
+from dynamic_dual_arm_sim.benchmark import (
+    controller_summary,
+    exact_mcnemar_p_value,
+    failure_analysis,
+    paired_summary,
+    wilson_interval,
+)
 
 
 class BenchmarkTests(unittest.TestCase):
@@ -46,6 +52,25 @@ class BenchmarkTests(unittest.TestCase):
 
         self.assertEqual(summary["optimized_only"], 1)
         self.assertEqual(summary["both_capture"], 1)
+
+    def test_exact_mcnemar_detects_imbalanced_pairs(self) -> None:
+        self.assertLess(exact_mcnemar_p_value(6, 38), 0.001)
+
+    def test_failure_analysis_bins_transverse_speed(self) -> None:
+        row = {
+            "controller": "optimized",
+            "captured": False,
+            "transverse_speed_mps": 0.9,
+            "start_velocity_x_mps": 0.48,
+            "start_velocity_y_mps": 0.9,
+            "start_velocity_z_mps": 3.1,
+        }
+
+        analysis = failure_analysis([row], speed_limit=0.8)
+
+        counts = analysis["failure_category_counts"]["optimized"]
+        self.assertEqual(counts["outside_optimizer_speed_range"], 1)
+        self.assertEqual(counts["low_vertical_velocity"], 1)
 
 
 if __name__ == "__main__":
