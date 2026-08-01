@@ -6,6 +6,14 @@ simulation. The immediate version runs locally with Python and PyBullet. The
 research roadmap upgrades the same architecture into ROS 2 + NVIDIA Isaac Sim
 for photorealistic rendering and high-fidelity synthetic data.
 
+## Project Snapshot
+
+| | |
+| --- | --- |
+| **My work** | Built the coordinated interception simulation, trajectory prediction and control flow, contact metrics, experiment runner, and rendering pipeline |
+| **Stack** | Python, PyBullet, NumPy, pytest; ROS 2 and Isaac Sim are planned integration stages |
+| **Demo** | Follow [Quick Start](#quick-start), or generate the complete MP4 through [Create The First Showcase Clip](#create-the-first-showcase-clip) |
+
 ## What We Are Simulating
 
 The target project is a cinematic robotics R&D demo:
